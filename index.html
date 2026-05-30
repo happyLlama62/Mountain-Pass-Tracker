@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SA Mountain Pass Tracker</title>
+  <meta name="description" content="Track mountain passes you have driven in South Africa">
+  <meta name="theme-color" content="#1D9E75">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f0; color: #1a1a1a; }
+    header { background: #1D9E75; color: white; padding: 1rem; position: sticky; top: 0; z-index: 10; }
+    header h1 { font-size: 18px; font-weight: 600; }
+    header p { font-size: 12px; opacity: 0.85; margin-top: 2px; }
+    .container { padding: 1rem; max-width: 600px; margin: 0 auto; }
+    .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 1rem; }
+    .stat { background: white; border-radius: 12px; padding: 0.75rem 1rem; text-align: center; border: 0.5px solid #e0e0d8; }
+    .stat-num { font-size: 22px; font-weight: 600; color: #1D9E75; }
+    .stat-lbl { font-size: 11px; color: #888; margin-top: 2px; }
+    .progress-bg { background: #e0e0d8; border-radius: 99px; height: 8px; margin-bottom: 1rem; }
+    .progress-fill { background: #1D9E75; border-radius: 99px; height: 8px; transition: width 0.4s; }
+    .section-label { font-size: 11px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
+    .prov-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+    .prov-name { font-size: 12px; color: #555; width: 100px; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .prov-bg { flex: 1; background: #e0e0d8; border-radius: 99px; height: 6px; }
+    .prov-fill { background: #1D9E75; border-radius: 99px; height: 6px; transition: width 0.4s; }
+    .prov-count { font-size: 11px; color: #aaa; width: 32px; text-align: right; flex-shrink: 0; }
+    .controls { display: flex; gap: 8px; margin-bottom: 1rem; flex-wrap: wrap; }
+    .controls input[type=search], .controls select { border: 0.5px solid #ccc; border-radius: 8px; padding: 8px 12px; font-size: 14px; background: white; outline: none; }
+    .controls input[type=search] { flex: 1; min-width: 0; }
+    .pass-list { display: flex; flex-direction: column; gap: 6px; padding-bottom: 2rem; }
+    .pass-card { background: white; border: 0.5px solid #e0e0d8; border-radius: 12px; overflow: hidden; }
+    .pass-card.driven { border-color: #1D9E75; }
+    .pass-main { padding: 0.75rem 1rem; display: flex; align-items: center; gap: 10px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+    .pass-main:active { background: #f0f0eb; }
+    .pass-info { flex: 1; min-width: 0; }
+    .pass-name { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .pass-meta { font-size: 12px; color: #888; margin-top: 2px; display: flex; gap: 8px; flex-wrap: wrap; }
+    .pass-date-tag { color: #1D9E75; font-weight: 500; }
+    .alt-badge { font-size: 11px; padding: 2px 7px; border-radius: 6px; background: #E1F5EE; color: #085041; white-space: nowrap; flex-shrink: 0; }
+    .check-circle { width: 26px; height: 26px; border-radius: 50%; border: 1.5px solid #ccc; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all 0.2s; font-size: 14px; }
+    .check-circle.done { background: #1D9E75; border-color: #1D9E75; color: white; }
+    .expand-btn { background: none; border: none; cursor: pointer; font-size: 18px; color: #aaa; padding: 0 4px; flex-shrink: 0; line-height: 1; }
+    .pass-details { border-top: 0.5px solid #f0f0e8; padding: 0.75rem 1rem; background: #fafaf8; display: none; flex-direction: column; gap: 10px; }
+    .pass-details.open { display: flex; }
+    .detail-row { display: flex; flex-direction: column; gap: 4px; }
+    .detail-label { font-size: 11px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.04em; }
+    .detail-input { border: 0.5px solid #ddd; border-radius: 8px; padding: 7px 10px; font-size: 13px; background: white; outline: none; width: 100%; font-family: inherit; }
+    .detail-input:focus { border-color: #1D9E75; }
+    textarea.detail-input { resize: vertical; min-height: 70px; }
+    .detail-actions { display: flex; gap: 8px; justify-content: flex-end; }
+    .btn-save { background: #1D9E75; color: white; border: none; border-radius: 8px; padding: 7px 16px; font-size: 13px; cursor: pointer; }
+    .btn-clear { background: none; border: 0.5px solid #ccc; border-radius: 8px; padding: 7px 16px; font-size: 13px; cursor: pointer; color: #888; }
+    .empty { text-align: center; padding: 2rem; color: #aaa; font-size: 14px; }
+    .prov-section { margin-bottom: 1rem; }
+    .install-banner { background: #E1F5EE; border: 0.5px solid #5DCAA5; border-radius: 12px; padding: 0.75rem 1rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 10px; }
+    .install-banner p { font-size: 13px; color: #085041; flex: 1; }
+    .install-banner button { font-size: 13px; background: #1D9E75; color: white; border: none; border-radius: 8px; padding: 6px 14px; cursor: pointer; }
+    #install-banner { display: none; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>⛰ SA Mountain Pass Tracker</h1>
+  <p id="header-sub">Loading...</p>
+</header>
+
+<div class="container">
+  <div id="install-banner" class="install-banner">
+    <p>Add this app to your home screen for quick access!</p>
+    <button onclick="installApp()">Install</button>
+  </div>
+
+  <div class="stats-grid" id="stats"></div>
+  <div class="progress-bg"><div class="progress-fill" id="prog" style="width:0%"></div></div>
+
+  <div class="prov-section">
+    <div class="section-label">Progress by province</div>
+    <div id="prov-bars"></div>
+  </div>
+
+  <div class="controls">
+    <input type="search" id="search" placeholder="Search passes..." oninput="render()">
+    <select id="filter" onchange="render()">
+      <option value="all">All passes</option>
+      <option value="driven">Driven</option>
+      <option value="undriven">Not yet driven</option>
+    </select>
+    <select id="prov-filter" onchange="render()">
+      <option value="">All provinces</option>
+    </select>
+  </div>
+
+  <div class="pass-list" id="list"></div>
+</div>
+
+<script>
+const PASSES = [
+  {name:"Tradouw Pass",province:"Western Cape",altitude:400},
+  {name:"Bain's Kloof Pass",province:"Western Cape",altitude:841},
+  {name:"Franschhoek Pass",province:"Western Cape",altitude:732},
+  {name:"Du Toitskloof Pass",province:"Western Cape",altitude:1053},
+  {name:"Swartberg Pass",province:"Western Cape",altitude:1583},
+  {name:"Outeniqua Pass",province:"Western Cape",altitude:801},
+  {name:"Montagu Pass",province:"Western Cape",altitude:660},
+  {name:"Prince Alfred's Pass",province:"Western Cape",altitude:740},
+  {name:"Garcia Pass",province:"Western Cape",altitude:658},
+  {name:"Gydo Pass",province:"Western Cape",altitude:906},
+  {name:"Nuweberg Pass",province:"Western Cape",altitude:800},
+  {name:"Pakhuis Pass",province:"Western Cape",altitude:762},
+  {name:"Houw Hoek Pass",province:"Western Cape",altitude:476},
+  {name:"Sir Lowry's Pass",province:"Western Cape",altitude:514},
+  {name:"Cogmanskloof Pass",province:"Western Cape",altitude:236},
+  {name:"Meiringspoort Pass",province:"Western Cape",altitude:633},
+  {name:"Seweweekspoort Pass",province:"Western Cape",altitude:1026},
+  {name:"Helshoogte Pass",province:"Western Cape",altitude:372},
+  {name:"Constantia Nek",province:"Western Cape",altitude:280},
+  {name:"Slanghoek Pass",province:"Western Cape",altitude:500},
+  {name:"Hex River Pass",province:"Western Cape",altitude:855},
+  {name:"Michell's Pass",province:"Western Cape",altitude:620},
+  {name:"Chapmans Peak",province:"Western Cape",altitude:300},
+  {name:"Red Hill Pass",province:"Western Cape",altitude:280},
+  {name:"Huguenot Tunnel",province:"Western Cape",altitude:700},
+  {name:"Gamkaskloof Pass",province:"Western Cape",altitude:600},
+  {name:"Rooiberg Pass",province:"Northern Cape",altitude:760},
+  {name:"Van Rhyns Pass",province:"Northern Cape",altitude:910},
+  {name:"Anenous Pass",province:"Northern Cape",altitude:790},
+  {name:"Boulders Pass",province:"Northern Cape",altitude:1050},
+  {name:"Nauwpoort Pass",province:"Northern Cape",altitude:940},
+  {name:"Bloukrans Pass",province:"Eastern Cape",altitude:220},
+  {name:"Baviaanskloof Pass",province:"Eastern Cape",altitude:500},
+  {name:"Naudé's Nek Pass",province:"Eastern Cape",altitude:2585},
+  {name:"Barkly Pass",province:"Eastern Cape",altitude:1981},
+  {name:"Penhoek Pass",province:"Eastern Cape",altitude:1893},
+  {name:"Wapadsberg Pass",province:"Eastern Cape",altitude:1800},
+  {name:"Katberg Pass",province:"Eastern Cape",altitude:1678},
+  {name:"Van Stadens Pass",province:"Eastern Cape",altitude:300},
+  {name:"Oliviershoek Pass",province:"KwaZulu-Natal",altitude:1630},
+  {name:"Van Reenen's Pass",province:"KwaZulu-Natal",altitude:1678},
+  {name:"Sani Pass",province:"KwaZulu-Natal",altitude:2874},
+  {name:"Bushman's Nek Pass",province:"KwaZulu-Natal",altitude:2130},
+  {name:"Field's Hill",province:"KwaZulu-Natal",altitude:560},
+  {name:"Botha's Pass",province:"KwaZulu-Natal",altitude:1650},
+  {name:"Kloof Pass",province:"KwaZulu-Natal",altitude:580},
+  {name:"Long Tom Pass",province:"Mpumalanga",altitude:2150},
+  {name:"Robbers Pass",province:"Mpumalanga",altitude:1800},
+  {name:"Sabie Pass",province:"Mpumalanga",altitude:1000},
+  {name:"Schoemanskloof Pass",province:"Mpumalanga",altitude:1100},
+  {name:"Abel Erasmus Pass",province:"Limpopo",altitude:1494},
+  {name:"Magoebaskloof Pass",province:"Limpopo",altitude:1200},
+  {name:"Haenertsburg Pass",province:"Limpopo",altitude:1300},
+  {name:"De Hoek Pass",province:"Free State",altitude:1700},
+  {name:"Naudesberg Pass",province:"Free State",altitude:1900},
+  {name:"Commissie Pass",province:"Free State",altitude:1600},
+  {name:"Suikerbosrand Pass",province:"Gauteng",altitude:1700},
+  {name:"Hartebeespoort Pass",province:"North West",altitude:1100},
+  {name:"Magaliesberg Pass",province:"North West",altitude:1200},
+];
+
+let data = {};
+try { data = JSON.parse(localStorage.getItem('sa_passes_v2') || '{}'); } catch(e){}
+
+function getData(idx){ return data[idx] || {driven:false, date:'', notes:''}; }
+function save(){ try{ localStorage.setItem('sa_passes_v2', JSON.stringify(data)); }catch(e){} }
+
+function toggle(idx){
+  const d = getData(idx);
+  d.driven = !d.driven;
+  if(!d.driven){ d.date = ''; d.notes = ''; }
+  data[idx] = d;
+  save();
+  render();
+}
+
+function toggleDetails(idx){
+  const el = document.getElementById('details-'+idx);
+  if(el) el.classList.toggle('open');
+}
+
+function saveDetails(idx){
+  const d = getData(idx);
+  const dateVal = document.getElementById('date-'+idx).value;
+  const notesVal = document.getElementById('notes-'+idx).value;
+  d.date = dateVal;
+  d.notes = notesVal;
+  if(dateVal || notesVal) d.driven = true;
+  data[idx] = d;
+  save();
+  render();
+}
+
+function clearDetails(idx){
+  const d = getData(idx);
+  d.date = '';
+  d.notes = '';
+  data[idx] = d;
+  save();
+  render();
+}
+
+const provinces = [...new Set(PASSES.map(p=>p.province))].sort();
+const sel = document.getElementById('prov-filter');
+provinces.forEach(p => {
+  const o = document.createElement('option');
+  o.value = p; o.textContent = p;
+  sel.appendChild(o);
+});
+
+function formatDate(val){
+  if(!val) return '';
+  const [y,m,d] = val.split('-');
+  return d+'/'+m+'/'+y;
+}
+
+function render(){
+  const q = document.getElementById('search').value.toLowerCase();
+  const f = document.getElementById('filter').value;
+  const pf = document.getElementById('prov-filter').value;
+  const total = PASSES.length;
+  const drivenCount = PASSES.filter((_,i)=>getData(i).driven).length;
+  const pct = Math.round((drivenCount/total)*100);
+
+  document.getElementById('prog').style.width = pct+'%';
+  document.getElementById('header-sub').textContent = drivenCount+' of '+total+' passes driven ('+pct+'%)';
+  document.getElementById('stats').innerHTML = `
+    <div class="stat"><div class="stat-num">${drivenCount}</div><div class="stat-lbl">driven</div></div>
+    <div class="stat"><div class="stat-num">${total-drivenCount}</div><div class="stat-lbl">to go</div></div>
+    <div class="stat"><div class="stat-num">${pct}%</div><div class="stat-lbl">complete</div></div>
+    <div class="stat"><div class="stat-num">${total}</div><div class="stat-lbl">total passes</div></div>
+  `;
+
+  const pb = document.getElementById('prov-bars');
+  pb.innerHTML = '';
+  provinces.forEach(pv => {
+    const pvTotal = PASSES.filter(p=>p.province===pv).length;
+    const pvDriven = PASSES.filter((p,i)=>p.province===pv && getData(i).driven).length;
+    const pvPct = Math.round((pvDriven/pvTotal)*100);
+    pb.innerHTML += `<div class="prov-row">
+      <span class="prov-name">${pv}</span>
+      <div class="prov-bg"><div class="prov-fill" style="width:${pvPct}%"></div></div>
+      <span class="prov-count">${pvDriven}/${pvTotal}</span>
+    </div>`;
+  });
+
+  const filtered = PASSES.map((p,i)=>({...p,idx:i})).filter(p => {
+    if(q && !p.name.toLowerCase().includes(q) && !p.province.toLowerCase().includes(q)) return false;
+    const d = getData(p.idx);
+    if(f==='driven' && !d.driven) return false;
+    if(f==='undriven' && d.driven) return false;
+    if(pf && p.province !== pf) return false;
+    return true;
+  });
+
+  const list = document.getElementById('list');
+  if(filtered.length===0){ list.innerHTML='<div class="empty">No passes found</div>'; return; }
+
+  list.innerHTML = filtered.map(p => {
+    const d = getData(p.idx);
+    const metaParts = [p.province];
+    if(d.date) metaParts.push(`<span class="pass-date-tag">Driven: ${formatDate(d.date)}</span>`);
+    if(d.notes) metaParts.push('Has notes');
+    return `
+    <div class="pass-card ${d.driven?'driven':''}" id="card-${p.idx}">
+      <div class="pass-main">
+        <div class="pass-info" onclick="toggle(${p.idx})">
+          <div class="pass-name">${p.name}</div>
+          <div class="pass-meta">${metaParts.join(' · ')}</div>
+        </div>
+        <span class="alt-badge">${p.altitude}m</span>
+        <button class="expand-btn" onclick="toggleDetails(${p.idx})" aria-label="Edit details">✎</button>
+        <div class="check-circle ${d.driven?'done':''}" onclick="toggle(${p.idx})">
+          ${d.driven?'&#10003;':''}
+        </div>
+      </div>
+      <div class="pass-details" id="details-${p.idx}">
+        <div class="detail-row">
+          <label class="detail-label">Date driven</label>
+          <input type="date" class="detail-input" id="date-${p.idx}" value="${d.date}">
+        </div>
+        <div class="detail-row">
+          <label class="detail-label">Notes</label>
+          <textarea class="detail-input" id="notes-${p.idx}" placeholder="Road conditions, scenery, tips...">${d.notes}</textarea>
+        </div>
+        <div class="detail-actions">
+          <button class="btn-clear" onclick="clearDetails(${p.idx})">Clear</button>
+          <button class="btn-save" onclick="saveDetails(${p.idx})">Save</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+let deferredPrompt;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredPrompt = e;
+  document.getElementById('install-banner').style.display = 'flex';
+});
+function installApp(){
+  if(deferredPrompt){ deferredPrompt.prompt(); deferredPrompt = null; document.getElementById('install-banner').style.display = 'none'; }
+}
+
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('sw.js').catch(()=>{});
+}
+
+render();
+</script>
+</body>
+</html>
